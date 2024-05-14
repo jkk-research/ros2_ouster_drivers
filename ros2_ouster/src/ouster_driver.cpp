@@ -16,6 +16,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <iostream>
 
 #include "rclcpp/qos.hpp"
 #include "ros2_ouster/exception.hpp"
@@ -54,6 +55,8 @@ OusterDriver::OusterDriver(
   this->declare_parameter("lidar_port", 7502);
   this->declare_parameter("lidar_mode", std::string("512x10"));
   this->declare_parameter("timestamp_mode", std::string("TIME_FROM_INTERNAL_OSC"));
+
+  std::cout << "Using intra-process communication: " << options.use_intra_process_comms() << std::endl;
 }
 
 OusterDriver::~OusterDriver() = default;
@@ -123,14 +126,22 @@ void OusterDriver::onConfigure()
   if (_use_system_default_qos) {
     RCLCPP_INFO(
       this->get_logger(), "Using system defaults QoS for sensor data");
+      rclcpp::SystemDefaultsQoS data_QoS;
+      data_QoS.best_effort();
+      data_QoS.durability_volatile();
+      data_QoS.keep_last(1);
     _data_processors = ros2_ouster::createProcessors(
       shared_from_this(), _sensor->getMetadata(), _imu_data_frame, _laser_data_frame,
-      rclcpp::SystemDefaultsQoS(),
+      data_QoS,
       _sensor->getPacketFormat(), _full_rotation_accumulator, _proc_mask);
   } else {
+    rclcpp::SensorDataQoS data_QoS;
+    data_QoS.best_effort();
+    data_QoS.durability_volatile();
+    data_QoS.keep_last(1);
     _data_processors = ros2_ouster::createProcessors(
       shared_from_this(), _sensor->getMetadata(), _imu_data_frame, _laser_data_frame,
-      rclcpp::SensorDataQoS(), _sensor->getPacketFormat(), _full_rotation_accumulator, _proc_mask);
+      data_QoS, _sensor->getPacketFormat(), _full_rotation_accumulator, _proc_mask);
   }
 
   _tf_b = std::make_unique<tf2_ros::StaticTransformBroadcaster>(
@@ -343,5 +354,6 @@ void OusterDriver::getMetadata(
     }
   }
 }
+
 
 }  // namespace ros2_ouster
